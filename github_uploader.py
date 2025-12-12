@@ -16,7 +16,7 @@ def main():
         
     owner = 'jacklomax'  # 你的GitHub用户名
     repo = 'image'       # 你的GitHub仓库名
-    branch = 'main'      # 你的分支名，GitHub默认主分支是 'main'
+    branch = 'dontdeploy'      # 你的分支名，GitHub默认主分支是 'main'
     message = 'upload image from typora'
     # ===========================================
 
@@ -43,23 +43,35 @@ def main():
             today = str(datetime.date.today())
             remote_path = f'typora/{today}/{new_filename}'
 
-            # ========== 【关键修改1】：使用GitHub上传API ==========
-            # 正确API地址：上传到GitHub，而不是jsDelivr
+            # ========== 【修改开始】新增文件检查逻辑 ==========
             api_url = f'https://api.github.com/repos/{owner}/{repo}/contents/{remote_path}'
-            
-            # ========== 【关键修改2】：使用正确的请求头和数据结构 ==========
             headers = {
                 'Authorization': f'token {token}',
                 'Accept': 'application/vnd.github.v3+json'
             }
+
+            # 第一步：尝试获取已存在文件的信息，以获取 sha
+            existing_file_sha = None
+            try:
+                check_response = requests.get(api_url, headers=headers, params={'ref': branch}, timeout=10)
+                if check_response.status_code == 200:
+                    # 文件已存在，获取其 sha
+                    existing_file_sha = check_response.json().get('sha')
+            except Exception as e:
+                # 如果检查失败，当作文件不存在处理，继续尝试上传
+                pass
+
+            # 第二步：准备上传数据，如果文件存在则加入 sha
             data = {
                 'message': message,
                 'branch': branch,
                 'content': content.decode('utf-8')  # base64编码的字符串
             }
+            if existing_file_sha:
+                data['sha'] = existing_file_sha  # 加入 sha 以执行更新操作
 
+            # 第三步：执行上传（创建或更新）
             try:
-                # ========== 【关键修改3】：使用PUT方法 ==========
                 response = requests.put(api_url, headers=headers, json=data, timeout=30)
                 resp_json = response.json()
 
